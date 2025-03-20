@@ -1,0 +1,623 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Website Navigation</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <style>
+        body { margin: 0; background: #000; color: #39c2ff; font-family: Arial, sans-serif; overflow: hidden; }
+        
+        .info-panel {
+            position: absolute;
+            width: 220px;
+            background: rgba(0,20,40,0.7);
+            border: 1px solid #39c2ff;
+            padding: 10px;
+            color: #39c2ff;
+            box-shadow: 0 0 15px rgba(57,194,255,0.3);
+            display: none;
+            z-index: 100;
+        }
+        
+        .info-panel h2 {
+            margin-top: 0;
+            margin-bottom: 8px;
+            font-size: 14px;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+        }
+        
+        .info-panel p {
+            margin: 8px 0;
+            font-size: 12px;
+            line-height: 1.4;
+        }
+        
+        .info-panel button {
+            background: rgba(0,40,80,0.7);
+            color: #39c2ff;
+            border: 1px solid #39c2ff;
+            padding: 5px 10px;
+            cursor: pointer;
+            font-size: 11px;
+        }
+    </style>
+</head>
+<body>
+    <div class="info-panel" id="infoPanel">
+        <h2 id="objName">Section Name</h2>
+        <p id="objDesc">Description will appear here.</p>
+        <button id="closeBtn">CLOSE</button>
+    </div>
+    
+    <script>
+        // Three.js setup
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(60, window.innerWidth/window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({antialias: true});
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
+        
+        // Lights
+        scene.add(new THREE.AmbientLight(0x333333));
+        scene.add(new THREE.PointLight(0x39c2ff, 1.5, 300));
+        
+        // Stars background
+        const starGeo = new THREE.BufferGeometry();
+        const starVerts = [];
+        for (let i = 0; i < 2000; i++) {
+            starVerts.push((Math.random() - 0.5) * 800, (Math.random() - 0.5) * 800, (Math.random() - 0.5) * 800);
+        }
+        starGeo.setAttribute('position', new THREE.Float32BufferAttribute(starVerts, 3));
+        const stars = new THREE.Points(starGeo, new THREE.PointsMaterial({color: 0x39c2ff, size: 0.3, opacity: 0.6, transparent: true}));
+        scene.add(stars);
+        
+        // Helper function to create holographic material
+        function holoMaterial(color, opacity) {
+            return new THREE.MeshStandardMaterial({
+                color: color, emissive: color, emissiveIntensity: 0.3,
+                transparent: true, opacity: opacity, roughness: 0.3, metalness: 0.8
+            });
+        }
+        
+        // Generate random planets
+        function getRandomColor() {
+            const colors = [0x2244ff, 0xc1440e, 0xe39e1c, 0xc99039, 0xc3a35a, 0x5580aa, 0x366896, 0xcccccc];
+            return colors[Math.floor(Math.random() * colors.length)];
+        }
+        
+        // Website sections
+        const sections = {
+            'home': { 
+                name: 'OSIRIS INDUSTRIES',
+                desc: 'Welcome to the central hub of Osiris Industries. Navigate through our holographic interface to explore different sections of our company.',
+                color: 0xffcc44, size: 5, dist: 0, opacity: 0.9
+            },
+            'about': { 
+                name: 'CHRISTIAN ALMONRODE',
+                desc: 'Learn more about the visionary behind Osiris Industries. Leadership, innovation, and future-focused solutions.',
+                color: getRandomColor(), size: Math.random() * 2 + 1, dist: Math.random() * 15 + 10, opacity: 0.7
+            },
+            'work': { 
+                name: 'PREVIOUS WORK',
+                desc: 'Explore our portfolio of past projects and achievements. Innovative solutions across multiple industries.',
+                color: getRandomColor(), size: Math.random() * 2 + 1, dist: Math.random() * 15 + 25, opacity: 0.7
+            },
+            'mission': { 
+                name: 'MISSION',
+                desc: 'Our core values and guiding principles. Committed to excellence, innovation, and sustainable development.',
+                color: getRandomColor(), size: Math.random() * 2 + 1, dist: Math.random() * 15 + 40, opacity: 0.7
+            },
+            'services': { 
+                name: 'SERVICES',
+                desc: 'Comprehensive overview of our service offerings and specialized solutions for clients across all sectors.',
+                color: getRandomColor(), size: Math.random() * 2 + 1, dist: Math.random() * 15 + 55, opacity: 0.7
+            },
+            'research': { 
+                name: 'RESEARCH & DEVELOPMENT',
+                desc: 'Cutting-edge research initiatives and development of next-generation technologies. Pushing boundaries of innovation.',
+                color: getRandomColor(), size: Math.random() * 2.5 + 0.5, dist: Math.random() * 15 + 70, opacity: 0.7,
+                hasRings: Math.random() > 0.5
+            },
+            'contact': { 
+                name: 'CONTACT',
+                desc: 'Get in touch with our team. Available channels for inquiries, partnerships, and client support.',
+                color: getRandomColor(), size: Math.random() * 2 + 1, dist: Math.random() * 15 + 85, opacity: 0.7
+            },
+            'careers': {
+                name: 'CAREERS',
+                desc: 'Join our team of innovators and problem-solvers. Current openings and application process for potential candidates.',
+                color: getRandomColor(), size: Math.random() * 2 + 1, dist: Math.random() * 15 + 100, opacity: 0.7
+            },
+            'comet': {
+                name: 'LATEST NEWS',
+                desc: 'Breaking updates and recent developments at Osiris Industries. Stay informed on our latest achievements and initiatives.',
+                color: 0x7bbeff, size: 0.7, dist: 60, opacity: 0.8,
+                isComet: true
+            }
+        };
+        
+        // Store created objects
+        const spaceObjs = {};
+        const objectGlows = {};
+        
+        // Create orbit line
+        function createOrbit(radius) {
+            const points = [];
+            for (let i = 0; i <= 64; i++) {
+                const angle = (i / 64) * Math.PI * 2;
+                points.push(Math.cos(angle) * radius, 0, Math.sin(angle) * radius);
+            }
+            
+            const orbitGeo = new THREE.BufferGeometry();
+            orbitGeo.setAttribute('position', new THREE.Float32BufferAttribute(points, 3));
+            
+            return new THREE.Line(orbitGeo, new THREE.LineBasicMaterial({
+                color: 0x39c2ff, transparent: true, opacity: 0.3
+            }));
+        }
+        
+        // Create holographic grid sphere
+        function createGridSphere(radius, color) {
+            const sphereGeometry = new THREE.SphereGeometry(radius + 0.2, 32, 16);
+            const sphereMaterial = new THREE.MeshBasicMaterial({
+                color: color || 0x39c2ff,
+                wireframe: true,
+                transparent: true,
+                opacity: 0.2
+            });
+            return new THREE.Mesh(sphereGeometry, sphereMaterial);
+        }
+        
+        // Create glow effect
+        function createGlow(radius, color) {
+            const glowGeometry = new THREE.SphereGeometry(radius * 1.5, 32, 32);
+            const glowMaterial = new THREE.MeshBasicMaterial({
+                color: color,
+                transparent: true,
+                opacity: 0.0, // Start invisible
+                side: THREE.BackSide
+            });
+            const glow = new THREE.Mesh(glowGeometry, glowMaterial);
+            return glow;
+        }
+        
+        // Create comet with tail
+        function createComet(size, color, opacity) {
+            const cometGroup = new THREE.Group();
+            
+            // Comet head
+            const cometGeometry = new THREE.SphereGeometry(size, 16, 16);
+            const cometMaterial = holoMaterial(color, opacity);
+            const comet = new THREE.Mesh(cometGeometry, cometMaterial);
+            cometGroup.add(comet);
+            
+            // Comet tail
+            const tailGeometry = new THREE.ConeGeometry(size * 0.7, size * 6, 8);
+            const tailMaterial = new THREE.MeshBasicMaterial({
+                color: color,
+                transparent: true,
+                opacity: 0.4
+            });
+            const tail = new THREE.Mesh(tailGeometry, tailMaterial);
+            tail.rotation.z = Math.PI;
+            tail.position.x = -size * 3;
+            cometGroup.add(tail);
+            
+            // Add glowing effect
+            const glowGeometry = new THREE.SphereGeometry(size * 1.2, 16, 16);
+            const glowMaterial = new THREE.MeshBasicMaterial({
+                color: color,
+                transparent: true,
+                opacity: 0.3
+            });
+            const glow = new THREE.Mesh(glowGeometry, glowMaterial);
+            cometGroup.add(glow);
+            
+            return cometGroup;
+        }
+        
+        // Create and add space objects
+        Object.keys(sections).forEach(id => {
+            const info = sections[id];
+            let obj;
+            
+            if (info.isComet) {
+                obj = createComet(info.size, info.color, info.opacity);
+            } else {
+                // Create sphere for planets
+                const geo = new THREE.SphereGeometry(info.size, 32, 32);
+                obj = new THREE.Mesh(geo, holoMaterial(info.color, info.opacity));
+            }
+            
+            // Add orbit (except for home/center)
+            if (id !== 'home' && id !== 'comet' && info.dist > 0) {
+                scene.add(createOrbit(info.dist));
+            }
+            
+            // Position object
+            const angle = Math.random() * Math.PI * 2;
+            obj.position.x = Math.cos(angle) * info.dist;
+            obj.position.z = Math.sin(angle) * info.dist;
+            
+            // Position comet on angled orbit
+            if (info.isComet) {
+                obj.position.y = 15;
+            }
+            
+            // Add rings for random planets
+            if (info.hasRings) {
+                const ring = new THREE.Mesh(
+                    new THREE.RingGeometry(info.size * 1.3, info.size * 2, 32),
+                    new THREE.MeshBasicMaterial({
+                        color: info.color, side: THREE.DoubleSide,
+                        transparent: true, opacity: 0.5
+                    })
+                );
+                ring.rotation.x = Math.PI / 2;
+                obj.add(ring);
+            }
+            
+            // Add holographic scan effect - grid sphere
+            const gridSphere = createGridSphere(info.size, 0x39c2ff);
+            obj.add(gridSphere);
+            
+            // Add glow effect (initially invisible)
+            const glow = createGlow(info.size, info.color);
+            scene.add(glow);
+            
+            // Store reference to glow
+            objectGlows[id] = glow;
+            
+            // Add object data for raycasting
+            obj.userData = { id: id };
+            
+            scene.add(obj);
+            spaceObjs[id] = obj;
+        });
+        
+        // Camera setup
+        camera.position.set(0, 30, 80);
+        camera.lookAt(0, 0, 0);
+        
+        // Camera control variables
+        let isAnimating = false;
+        let cameraTarget = new THREE.Vector3(0, 0, 0);
+        let cameraDistance = camera.position.length();
+        
+        // Mouse control
+        let isDragging = false;
+        let prevMouse = { x: 0, y: 0 };
+        
+        document.addEventListener('mousedown', (e) => {
+            if (isAnimating) return;
+            isDragging = true;
+            prevMouse = { x: e.clientX, y: e.clientY };
+        });
+        
+        document.addEventListener('mouseup', () => { isDragging = false; });
+        
+        document.addEventListener('mousemove', (e) => {
+            if (isDragging && !isAnimating) {
+                const delta = {
+                    x: e.clientX - prevMouse.x,
+                    y: e.clientY - prevMouse.y
+                };
+                
+                const rotSpeed = 0.004;
+                
+                // Calculate spherical coordinates
+                const theta = Math.atan2(camera.position.x - cameraTarget.x, camera.position.z - cameraTarget.z);
+                const phi = Math.atan2(
+                    Math.sqrt((camera.position.x - cameraTarget.x) * (camera.position.x - cameraTarget.x) + 
+                             (camera.position.z - cameraTarget.z) * (camera.position.z - cameraTarget.z)),
+                    camera.position.y - cameraTarget.y
+                );
+                
+                // Update angles based on mouse movement
+                const newTheta = theta - delta.x * rotSpeed;
+                const newPhi = Math.max(0.1, Math.min(Math.PI - 0.1, phi + delta.y * rotSpeed));
+                
+                // Distance to target
+                const dist = new THREE.Vector3().subVectors(camera.position, cameraTarget).length();
+                
+                // Convert back to Cartesian coordinates
+                camera.position.x = cameraTarget.x + dist * Math.sin(newPhi) * Math.sin(newTheta);
+                camera.position.y = cameraTarget.y + dist * Math.cos(newPhi);
+                camera.position.z = cameraTarget.z + dist * Math.sin(newPhi) * Math.cos(newTheta);
+                
+                camera.lookAt(cameraTarget);
+                
+                prevMouse = { x: e.clientX, y: e.clientY };
+                
+                // Update info panel position if visible
+                updateInfoPosition();
+            }
+        });
+        
+        // Zoom with scroll
+        document.addEventListener('wheel', (e) => {
+            if (isAnimating) return;
+            
+            const zoomSpeed = 0.1;
+            const direction = e.deltaY > 0 ? 1 : -1;
+            
+            // Update camera distance
+            cameraDistance = Math.max(10, Math.min(150, cameraDistance * (1 + direction * zoomSpeed)));
+            
+            // Calculate unit vector from target to camera
+            const unit = new THREE.Vector3().copy(camera.position).sub(cameraTarget).normalize();
+            
+            // Set new camera position
+            camera.position.copy(unit.multiplyScalar(cameraDistance).add(cameraTarget));
+            
+            e.preventDefault();
+            
+            // Update info panel position if visible
+            updateInfoPosition();
+        });
+        
+        // ESC key to reset view
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                moveCamera(new THREE.Vector3(0, 0, 0), 80);
+                hideInfo();
+            }
+        });
+        
+        // Camera animation
+        function moveCamera(target, distance) {
+            if (isAnimating) return;
+            
+            isAnimating = true;
+            
+            const startPos = camera.position.clone();
+            const startTarget = cameraTarget.clone();
+            const endTarget = target.clone();
+            const endDistance = distance || cameraDistance;
+            
+            // Animation parameters
+            const duration = 1000; // ms
+            const startTime = performance.now();
+            
+            function animateFrame(time) {
+                const elapsed = time - startTime;
+                const progress = Math.min(elapsed / duration, 1);
+                
+                // Ease function
+                const ease = progress < 0.5 ? 2 * progress * progress : 1 - Math.pow(-2 * progress + 2, 2) / 2;
+                
+                // Get direction from current position to target
+                const dir = new THREE.Vector3().subVectors(camera.position, cameraTarget).normalize();
+                
+                // Update target
+                cameraTarget.lerpVectors(startTarget, endTarget, ease);
+                
+                // Update position based on new target
+                const newPos = new THREE.Vector3().copy(dir).multiplyScalar(
+                    startPos.distanceTo(startTarget) * (1-ease) + endDistance * ease
+                ).add(cameraTarget);
+                
+                camera.position.copy(newPos);
+                camera.lookAt(cameraTarget);
+                
+                // Update info panel position
+                updateInfoPosition();
+                
+                if (progress < 1) {
+                    requestAnimationFrame(animateFrame);
+                } else {
+                    isAnimating = false;
+                }
+            }
+            
+            requestAnimationFrame(animateFrame);
+        }
+        
+        // Info panel elements
+        const infoPanel = document.getElementById('infoPanel');
+        const objNameEl = document.getElementById('objName');
+        const objDescEl = document.getElementById('objDesc');
+        const closeBtn = document.getElementById('closeBtn');
+        
+        closeBtn.addEventListener('click', hideInfo);
+        
+        let currentObject = null;
+        
+        function hideInfo() {
+            infoPanel.style.display = 'none';
+            currentObject = null;
+            
+            // Reset all objects to normal
+            Object.keys(spaceObjs).forEach(id => {
+                const obj = spaceObjs[id];
+                if (obj.material && obj.material.emissiveIntensity) {
+                    obj.material.emissiveIntensity = 0.3;
+                    obj.material.opacity = sections[id].opacity;
+                }
+                
+                // Hide glow
+                if (objectGlows[id]) {
+                    objectGlows[id].material.opacity = 0;
+                }
+            });
+        }
+        
+        function updateInfoPosition() {
+            if (!currentObject || infoPanel.style.display !== 'block') return;
+            
+            // Get screen position of the 3D object
+            const objectPos = currentObject.position.clone();
+            const vector = objectPos.project(camera);
+            
+            // Convert to screen coordinates
+            const x = (vector.x * 0.5 + 0.5) * window.innerWidth;
+            const y = (-vector.y * 0.5 + 0.5) * window.innerHeight;
+            
+            // Position the panel next to the object
+            const padding = 60;
+            infoPanel.style.left = (x + padding) + 'px';
+            infoPanel.style.top = (y - infoPanel.offsetHeight / 2) + 'px';
+        }
+        
+        // Object selection
+        const raycaster = new THREE.Raycaster();
+        const mouse = new THREE.Vector2();
+        
+        document.addEventListener('click', (e) => {
+            if (isDragging || isAnimating) return;
+            
+            // Calculate mouse position
+            mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+            
+            // Update raycaster
+            raycaster.setFromCamera(mouse, camera);
+            
+            // Get all objects to test
+            const objectsToTest = Object.values(spaceObjs);
+            
+            // Find intersections
+            const intersects = raycaster.intersectObjects(objectsToTest, true);
+            
+            if (intersects.length > 0) {
+                // Find first intersected object
+                let selected = intersects[0].object;
+                
+                // If it's a child, get the parent with userData
+                while (selected && (!selected.userData || !selected.userData.id)) {
+                    selected = selected.parent;
+                }
+                
+                if (selected && selected.userData && selected.userData.id) {
+                    const id = selected.userData.id;
+                    showInfo(id, selected);
+                    const info = sections[id];
+                    moveCamera(selected.position, info.size * 10 + 10);
+                }
+            }
+        });
+        
+        function showInfo(id, object) {
+            const info = sections[id];
+            if (info) {
+                objNameEl.textContent = info.name;
+                objDescEl.textContent = info.desc;
+                
+                // Store reference to the selected object
+                currentObject = object;
+                
+                // Update position before showing
+                updateInfoPosition();
+                
+                // Show panel
+                infoPanel.style.display = 'block';
+                
+                // Dim all objects and remove any existing glow
+                Object.keys(spaceObjs).forEach(objId => {
+                    const obj = spaceObjs[objId];
+                    if (obj.material && obj.material.emissiveIntensity) {
+                        if (objId !== id) {
+                            // Dim non-selected objects
+                            obj.material.emissiveIntensity = 0.1;
+                            obj.material.opacity = 0.3;
+                        } else {
+                            // Highlight selected object
+                            obj.material.emissiveIntensity = 0.8;
+                            obj.material.opacity = 1.0;
+                        }
+                    }
+                    
+                    // Hide all glows
+                    if (objectGlows[objId]) {
+                        objectGlows[objId].material.opacity = objId === id ? 0.4 : 0;
+                    }
+                });
+                
+                // Update glow position to match object
+                if (objectGlows[id]) {
+                    objectGlows[id].position.copy(object.position);
+                }
+            }
+        }
+        
+        // Handle window resize
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            updateInfoPosition();
+        });
+        
+        // Animation loop
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            const time = Date.now() * 0.0005;
+            
+            // Rotate objects
+            Object.keys(spaceObjs).forEach(id => {
+                if (id === 'home') {
+                    // Rotate sun 
+                    spaceObjs[id].rotation.y += 0.003;
+                    return;
+                }
+                
+                const obj = spaceObjs[id];
+                const info = sections[id];
+                
+                if (id === 'comet') {
+                    // Comet moves in an elliptical, inclined orbit
+                    const a = 60; // Semi-major axis
+                    const b = 40; // Semi-minor axis
+                    const cometTime = time * 0.5;
+                    obj.position.x = Math.cos(cometTime) * a;
+                    obj.position.z = Math.sin(cometTime) * b;
+                    obj.position.y = 15 + Math.sin(cometTime * 0.7) * 5;
+                    
+                    // Update glow position
+                    if (objectGlows[id]) {
+                        objectGlows[id].position.copy(obj.position);
+                    }
+                    
+                    // Rotate comet to face direction of travel
+                    const tangentAngle = Math.atan2(-a * Math.sin(cometTime), b * Math.cos(cometTime));
+                    obj.rotation.y = tangentAngle + Math.PI/2;
+                } else {
+                    // Regular orbital motion
+                    const speed = 0.3 / info.dist;
+                    obj.position.x = Math.cos(time * speed) * info.dist;
+                    obj.position.z = Math.sin(time * speed) * info.dist;
+                    
+                    // Update glow position
+                    if (objectGlows[id]) {
+                        objectGlows[id].position.copy(obj.position);
+                    }
+                    
+                    obj.rotation.y += 0.01;
+                }
+                
+                // For grid sphere effects
+                obj.children.forEach(child => {
+                    if (child.material && child.material.wireframe) {
+                        child.rotation.y -= 0.005;
+                        child.rotation.x += 0.003;
+                    }
+                });
+            });
+            
+            // Update info panel position if visible
+            if (currentObject) {
+                updateInfoPosition();
+            }
+            
+            // Slowly rotate stars
+            stars.rotation.y += 0.0001;
+            
+            renderer.render(scene, camera);
+        }
+        
+        animate();
+    </script>
+</body>
+</html>
